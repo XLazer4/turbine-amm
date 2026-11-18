@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
 
-use crate::{curve, error::AmmError, state::Config};
+use crate::{constants::CONFIG_SEED, curve, error::AmmError, state::Config};
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
@@ -12,7 +12,7 @@ pub struct Swap<'info> {
     #[account(
         has_one = mint_x,
         has_one = mint_y,
-        seeds = [b"config", config.seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED, config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump
     )]
     pub config: Account<'info, Config>,
@@ -157,7 +157,7 @@ impl<'info> Swap<'info> {
                     authority: self.config.to_account_info(),
                 },
                 &[&[
-                    b"config",
+                    CONFIG_SEED,
                     &self.config.seed.to_le_bytes(),
                     &[self.config.config_bump],
                 ]],

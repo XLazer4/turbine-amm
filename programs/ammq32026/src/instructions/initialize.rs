@@ -4,7 +4,12 @@ use anchor_spl::{
     token::{Mint, Token, TokenAccount},
 };
 
-use crate::{curve::BPS_DENOMINATOR, error::AmmError, state::Config};
+use crate::{
+    constants::{CONFIG_SEED, LP_SEED},
+    curve::BPS_DENOMINATOR,
+    error::AmmError,
+    state::Config,
+};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -16,7 +21,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = initializer,
-        seeds = [b"lp", config.key.as_ref()],
+        seeds = [LP_SEED, config.key.as_ref()],
         bump,
         mint::decimals = 6,
         mint::authority = config,
@@ -39,7 +44,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = initializer,
-        seeds = [b"config", seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED, seed.to_le_bytes().as_ref()],
         bump,
         space = Config::DISCRIMINATOR.len() + Config::INIT_SPACE,
     )]

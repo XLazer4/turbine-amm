@@ -4,7 +4,12 @@ use anchor_spl::{
     token::{burn, transfer, Burn, Mint, Token, TokenAccount, Transfer},
 };
 
-use crate::{curve, error::AmmError, state::Config};
+use crate::{
+    constants::{CONFIG_SEED, LP_SEED},
+    curve,
+    error::AmmError,
+    state::Config,
+};
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -15,13 +20,13 @@ pub struct Withdraw<'info> {
     #[account(
         has_one = mint_x,
         has_one = mint_y,
-        seeds = [b"config", config.seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED, config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump,
     )]
     pub config: Box<Account<'info, Config>>,
     #[account(
         mut,
-        seeds = [b"lp", config.key().as_ref()],
+        seeds = [LP_SEED, config.key().as_ref()],
         bump = config.lp_bump,
     )]
     pub mint_lp: Box<Account<'info, Mint>>,
@@ -105,7 +110,7 @@ impl<'info> Withdraw<'info> {
                     authority: self.config.to_account_info(),
                 },
                 &[&[
-                    b"config",
+                    CONFIG_SEED,
                     &self.config.seed.to_le_bytes(),
                     &[self.config.config_bump],
                 ]],

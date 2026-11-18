@@ -1,13 +1,13 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::AmmError, state::Config};
+use crate::{constants::CONFIG_SEED, error::AmmError, state::Config};
 
 #[derive(Accounts)]
 pub struct Update<'info> {
     pub authority: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"config", config.seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED, config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump,
     )]
     pub config: Account<'info, Config>,

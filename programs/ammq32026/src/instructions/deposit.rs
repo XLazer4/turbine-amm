@@ -4,7 +4,12 @@ use anchor_spl::{
     token::{mint_to, transfer, Mint, MintTo, Token, TokenAccount, Transfer},
 };
 
-use crate::{curve, error::AmmError, state::Config};
+use crate::{
+    constants::{CONFIG_SEED, LP_SEED},
+    curve,
+    error::AmmError,
+    state::Config,
+};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -15,13 +20,13 @@ pub struct Deposit<'info> {
     #[account(
         has_one = mint_x,
         has_one = mint_y,
-        seeds = [b"config", config.seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED, config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump,
     )]
     pub config: Account<'info, Config>,
     #[account(
         mut,
-        seeds = [b"lp", config.key().as_ref()],
+        seeds = [LP_SEED, config.key().as_ref()],
         bump = config.lp_bump,
     )]
     pub mint_lp: Account<'info, Mint>,
@@ -132,7 +137,7 @@ impl<'info> Deposit<'info> {
         };
 
         let signer_seeds: &[&[&[u8]]] = &[&[
-            b"config",
+            CONFIG_SEED,
             &self.config.seed.to_le_bytes(),
             &[self.config.config_bump],
         ]];
