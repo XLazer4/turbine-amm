@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
-use constant_product_curve::{ConstantProduct, LiquidityPair};
 
-use crate::{error::AmmError, state::Config};
+use crate::{curve, error::AmmError, state::Config};
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
@@ -17,11 +16,6 @@ pub struct Swap<'info> {
         bump = config.config_bump
     )]
     pub config: Account<'info, Config>,
-    #[account(
-        seeds = [b"lp", config.key().as_ref()],
-        bump = config.lp_bump,
-    )]
-    pub mint_lp: Box<Account<'info, Mint>>,
     #[account(
         mut,
         associated_token::mint = mint_x,
@@ -55,26 +49,17 @@ impl<'info> Swap<'info> {
     pub fn swap(&mut self, is_x: bool, amount: u64, min: u64) -> Result<()> {
         require!(!self.config.locked, AmmError::PoolLocked);
         require!(amount > 0, AmmError::InvalidAmount);
-        let mut curve = ConstantProduct::init(
-            self.vault_x.amount,
-            self.vault_y.amount,
-            self.mint_lp.supply,
-            self.config.fee,
-            Some(6),
-        )
-        .unwrap();
-
-        let p = match is_x {
-            true => LiquidityPair::X,
-            false => LiquidityPair::Y,
+        let (reserve_in, reserve_out) = match is_x {
+            true => (self.vault_x.amount, self.vault_y.amount),
+            false => (self.vault_y.amount, self.vault_x.amount),
         };
 
-        let swap_result: constant_product_curve::SwapResult = curve
-            .swap(p, amount, min)
-            .map_err(|_| AmmError::SlippageExceeded)?;
+        let amount_out = curve::swap_amount_out(reserve_in, reserve_out, amount, self.config.fee)?;
+        require!(amount_out > 0, AmmError::InvalidAmount);
+        require!(amount_out >= min, AmmError::SlippageExceeded);
 
-        self.deposit_tokens(is_x, swap_result.deposit)?;
-        self.withdraw_tokens(is_x, swap_result.withdraw)
+        self.deposit_tokens(is_x, amount)?;
+        self.withdraw_tokens(is_x, amount_out)
     }
 
     pub fn deposit_tokens(&mut self, is_x: bool, amount: u64) -> Result<()> {

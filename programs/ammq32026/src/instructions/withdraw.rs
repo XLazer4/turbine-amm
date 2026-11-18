@@ -3,9 +3,8 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::{burn, transfer, Burn, Mint, Token, TokenAccount, Transfer},
 };
-use constant_product_curve::ConstantProduct;
 
-use crate::{error::AmmError, state::Config};
+use crate::{curve, error::AmmError, state::Config};
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -71,15 +70,12 @@ impl<'info> Withdraw<'info> {
         require!(!self.config.locked, AmmError::PoolLocked);
         require_neq!(amount, 0, AmmError::InvalidAmount);
 
-        let amounts = ConstantProduct::xy_withdraw_amounts_from_l(
+        let (x, y) = curve::withdraw_amounts(
             self.vault_x.amount,
             self.vault_y.amount,
             self.mint_lp.supply,
             amount,
-            6,
-        )
-        .unwrap();
-        let (x, y) = (amounts.x, amounts.y);
+        )?;
 
         require!(x >= min_x && y >= min_y, AmmError::SlippageExceeded);
 
