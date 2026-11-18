@@ -40,6 +40,18 @@ pub struct Swap<'info> {
         associated_token::authority = user,
     )]
     pub user_y: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint_x,
+        associated_token::authority = config.treasury,
+    )]
+    pub treasury_x: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint_y,
+        associated_token::authority = config.treasury,
+    )]
+    pub treasury_y: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
     // pub system_program: Program<'info, System>,
     // pub associated_token_program: Program<'info, AssociatedToken>,
@@ -54,12 +66,49 @@ impl<'info> Swap<'info> {
             false => (self.vault_y.amount, self.vault_x.amount),
         };
 
-        let amount_out = curve::swap_amount_out(reserve_in, reserve_out, amount, self.config.fee)?;
+        // protocol cut comes off the top, the rest goes through the curve
+        // where the LP fee is taken and left in the vault
+        let protocol_cut = curve::bps_of(amount, self.config.protocol_fee)?;
+        let to_pool = amount
+            .checked_sub(protocol_cut)
+            .ok_or(AmmError::Underflow)?;
+
+        let amount_out = curve::swap_amount_out(reserve_in, reserve_out, to_pool, self.config.fee)?;
         require!(amount_out > 0, AmmError::InvalidAmount);
         require!(amount_out >= min, AmmError::SlippageExceeded);
 
-        self.deposit_tokens(is_x, amount)?;
+        self.deposit_tokens(is_x, to_pool)?;
+        self.pay_protocol_fee(is_x, protocol_cut)?;
         self.withdraw_tokens(is_x, amount_out)
+    }
+
+    pub fn pay_protocol_fee(&mut self, is_x: bool, amount: u64) -> Result<()> {
+        if amount == 0 {
+            return Ok(());
+        }
+
+        let (from, to) = match is_x {
+            true => (
+                self.user_x.to_account_info(),
+                self.treasury_x.to_account_info(),
+            ),
+            false => (
+                self.user_y.to_account_info(),
+                self.treasury_y.to_account_info(),
+            ),
+        };
+
+        transfer(
+            CpiContext::new(
+                self.token_program.key(),
+                Transfer {
+                    from,
+                    to,
+                    authority: self.user.to_account_info(),
+                },
+            ),
+            amount,
+        )
     }
 
     pub fn deposit_tokens(&mut self, is_x: bool, amount: u64) -> Result<()> {

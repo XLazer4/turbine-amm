@@ -4,7 +4,7 @@ use anchor_spl::{
     token::{Mint, Token, TokenAccount},
 };
 
-use crate::state::Config;
+use crate::{curve::BPS_DENOMINATOR, error::AmmError, state::Config};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -28,14 +28,14 @@ pub struct Initialize<'info> {
         associated_token::mint = mint_x,
         associated_token::authority = config,
     )]
-    pub vault_x: Account<'info, TokenAccount>,
+    pub vault_x: Box<Account<'info, TokenAccount>>,
     #[account(
         init,
         payer = initializer,
         associated_token::mint = mint_y,
         associated_token::authority = config,
     )]
-    pub vault_y: Account<'info, TokenAccount>,
+    pub vault_y: Box<Account<'info, TokenAccount>>,
     #[account(
         init,
         payer = initializer,
@@ -44,6 +44,22 @@ pub struct Initialize<'info> {
         space = Config::DISCRIMINATOR.len() + Config::INIT_SPACE,
     )]
     pub config: Account<'info, Config>,
+    /// CHECK: only used as the owner of the treasury token accounts
+    pub treasury: UncheckedAccount<'info>,
+    #[account(
+        init_if_needed,
+        payer = initializer,
+        associated_token::mint = mint_x,
+        associated_token::authority = treasury,
+    )]
+    pub treasury_x: Box<Account<'info, TokenAccount>>,
+    #[account(
+        init_if_needed,
+        payer = initializer,
+        associated_token::mint = mint_y,
+        associated_token::authority = treasury,
+    )]
+    pub treasury_y: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -54,15 +70,23 @@ impl<'info> Initialize<'info> {
         &mut self,
         seed: u64,
         fee: u16,
+        protocol_fee: u16,
         authority: Option<Pubkey>,
         bumps: InitializeBumps,
     ) -> Result<()> {
+        require!(
+            (fee as u128 + protocol_fee as u128) < BPS_DENOMINATOR,
+            AmmError::FeePercentErr
+        );
+
         self.config.set_inner(Config {
             seed,
             authority,
             mint_x: self.mint_x.key(),
             mint_y: self.mint_y.key(),
+            treasury: self.treasury.key(),
             fee,
+            protocol_fee,
             locked: false,
             config_bump: bumps.config,
             lp_bump: bumps.mint_lp,
