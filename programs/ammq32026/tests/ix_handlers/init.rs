@@ -3,47 +3,34 @@ use {
         solana_program::instruction::Instruction, system_program::ID as SYSTEM_PROGRAM_ID,
         InstructionData, ToAccountMetas,
     },
-    anchor_spl::associated_token::{self, ID as ASSOCIATED_TOKEN_PROGRAM_ID},
-    litesvm::LiteSVM,
+    anchor_spl::associated_token::ID as ASSOCIATED_TOKEN_PROGRAM_ID,
     litesvm_token::spl_token::ID as TOKEN_PROGRAM_ID,
-    solana_keypair::Keypair,
-    solana_pubkey::Pubkey,
     solana_signer::Signer,
 };
 
-pub fn create_initialise_ix(
-    mut _svm: &mut LiteSVM,
-    payer: &Keypair,
-    mint_x: Pubkey,
-    mint_y: Pubkey,
-    config: Pubkey,
-    mint_lp: Pubkey,
-    vault_x: Pubkey,
-    vault_y: Pubkey,
-) -> Instruction {
-    let maker = payer.pubkey();
-    let treasury = maker;
+use crate::Pool;
 
+pub fn create_initialise_ix(pool: &Pool, fee: u16, protocol_fee: u16) -> Instruction {
     Instruction::new_with_bytes(
         ammq32026::id(),
         &ammq32026::instruction::Initialize {
-            seed: 123,
-            fee: 30,
-            protocol_fee: 5,
-            authority: Some(maker),
+            seed: pool.seed,
+            fee,
+            protocol_fee,
+            authority: Some(pool.admin.pubkey()),
         }
         .data(),
         ammq32026::accounts::Initialize {
-            initializer: maker,
-            mint_x,
-            mint_y,
-            mint_lp,
-            vault_x,
-            vault_y,
-            config,
-            treasury,
-            treasury_x: associated_token::get_associated_token_address(&treasury, &mint_x),
-            treasury_y: associated_token::get_associated_token_address(&treasury, &mint_y),
+            initializer: pool.admin.pubkey(),
+            mint_x: pool.mint_x,
+            mint_y: pool.mint_y,
+            mint_lp: pool.mint_lp,
+            vault_x: pool.vault_x,
+            vault_y: pool.vault_y,
+            config: pool.config,
+            treasury: pool.treasury,
+            treasury_x: pool.treasury_x,
+            treasury_y: pool.treasury_y,
             token_program: TOKEN_PROGRAM_ID,
             associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: SYSTEM_PROGRAM_ID,
